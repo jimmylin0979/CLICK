@@ -1,9 +1,15 @@
 from __future__ import unicode_literals
+from abc import abstractproperty
+from logging import debug
 
-from flask import Flask, request, abort
+from flask import Flask, request, abort, render_template
 
-from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
+from linebot import (
+    LineBotApi, WebhookHandler
+)
+from linebot.exceptions import (
+    InvalidSignatureError
+)
 # MessageType Class, such as StickerSendMessage, ImageSendMessage
 from linebot.models import *
 
@@ -23,7 +29,8 @@ config.read('config.ini')
 
 # Flask 網站設定
 # 獲取 本地端 port 接口、 DEBUG 模式
-# PORT = config.get('')
+PORT = config.get('flask-server', 'server_port')
+HOST = config.get('flask-server', 'server_host')
 
 # LINE 聊天機器人的基本資料
 # 向 config.ini 讀取 channel_secret 及 channel_access_token
@@ -37,7 +44,7 @@ blackList = ['Udeadbeefdeadbeefdeadbeefdeadbeef']
 ### Server API ###
 
 # 接收 LINE 的資訊
-@app.route("/callback", methods=['POST'])
+@app.route("/lineWebhook", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
 
@@ -53,6 +60,12 @@ def callback():
 
     return 'OK'
 
+# 救護人員 視覺化 CLICK 網頁接口
+@app.route("/view", methods=['GET'])
+def view():
+    return render_template('index.html')
+
+# 提供給 ESP32 傳遞資訊 的 接口
 @app.route("/esp", methods=['POST', 'GET'])
 def esp():
     if request.method == 'POST':
@@ -62,10 +75,11 @@ def esp():
         print(request)
         return 'Succeed : GET'
     
-    return 500
+    # 
+    abort(500)
 
 #########################################################################################
-### Event Handle Trigger ###
+### Line Event Handle Trigger ###
 
 # Event Handle 事件處發函式
 # 當收到 LINE 的 MessageEvent (信息事件)，且信息是屬於 TextMessage (文字信息)的時候
@@ -98,6 +112,7 @@ def echo(event):
         pretty_text += i
         pretty_text += random.choice(pretty_note)
 
+    # 依 Reply Token 回傳訊息
     line_bot_api.reply_message(
         event.reply_token,
         StickerSendMessage(
@@ -112,4 +127,6 @@ def echo(event):
 if __name__ == "__main__":
 
     # run the server, and set the server port to localhost://5000
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    # app.run(debug=True, host='127.0.0.1', port=5000)
+    app.run(debug=True, host=HOST, port=PORT)
