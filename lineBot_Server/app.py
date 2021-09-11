@@ -43,7 +43,7 @@ blackList = ['Udeadbeefdeadbeefdeadbeefdeadbeef']
 #########################################################################################
 ### Server API ###
 
-# 接收 LINE 的資訊
+# 接收 LINE 的資訊，寫入
 @app.route("/lineWebhook", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -60,12 +60,12 @@ def callback():
 
     return 'OK'
 
-# 救護人員 視覺化 CLICK 網頁接口
+# 救護人員 視覺化 CLICK 網頁接口，唯讀
 @app.route("/view", methods=['GET'])
 def view():
     return render_template('index.html')
 
-# 提供給 ESP32 傳遞資訊 的 接口
+# 提供給 ESP32 傳遞資訊 的 接口，寫入
 @app.route("/esp", methods=['POST', 'GET'])
 def esp():
     if request.method == 'POST':
@@ -75,7 +75,7 @@ def esp():
         print(request)
         return 'Succeed : GET'
     
-    # 
+    # 未被伺服器處理， 
     abort(500)
 
 #########################################################################################
@@ -102,15 +102,6 @@ def echo(event):
 
     # 若為 Line 官方傳遞之罐頭訊息，則跳過
     if event.source.user_id == 'Udeadbeefdeadbeefdeadbeefdeadbeef':   return
-
-    # Phoebe 愛唱歌
-    pretty_note = '♫♪♬'
-    pretty_text = ''
-
-    for i in event.message.text:
-
-        pretty_text += i
-        pretty_text += random.choice(pretty_note)
 
     # 依 Reply Token 回傳訊息
     line_bot_api.reply_message(
