@@ -1,7 +1,0 @@
-{
-    "name": "Click Server on Heroku",
-    "description": "Click LineBot server that deploys on Heroku",
-    "image": "heroku/python",
-    "repository": "https://git.heroku.com/click-server-on-heroku.git",
-    "keywords": ["python", "flask" ]
-}
