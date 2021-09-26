@@ -1,8 +1,5 @@
-#include <A2DManager.h>
-#include <ADXL335.h>
 #include <Arduino.h>
 #include <HTTPClient.h>
-#include <Vector.h>
 #include <WiFi.h>
 
 /*******************************************************************************/
@@ -27,17 +24,12 @@
 
 /*******************************************************************************/
 
-void initData();
-
 // Tasks in Core 1
-void Filter();
-void SendData();
+void DataUpload();
+void SMDLEDControl();
 
-// Tasls in Core 0
+// Tasks in Core 0
 void TaskonCore0(void*);
-void A2D();
-void LEDControl();
-
 /*******************************************************************************/
 /* Public Variable : will share between 2 cores */
 
@@ -47,79 +39,23 @@ bool isNewDataComing = false;
 
 /* UNDER CORE 1 */
 
-// Acceleration History
-#define ACCUMULATED_AMOUNT 1
-float As[ACCUMULATED_AMOUNT], curA;
-int accumulated_idx = 0;
-// Acceleration TimeStamp
-unsigned long curTimeStamp = 0, preTimeStamp = 0;
-
 // Wifi HTTP Request
 const char* ssid = "realme X3";
 const char* password = "0979268400";
 
 /*******************************************************************************/
-// Tasks in Core 1
-// 1: Data COllection
-// 2: Web Server Data Transfer
+// Tasks in Core 0
+// 1: Uploading Data to lineBot server via HTTP Request
+// 2: SMD LED Control
 
-/* Acceleration */
-// Accelerator
-ADXL335 accelerometer;
-
-// Exponential Moving Average
-float alpha = 0.6;
-float preA = 0.0;
-
-void initData() {
-    for (int i = 0; i < ACCUMULATED_AMOUNT; i++) {
-        As[i] = 0.0;
-    }
-}
-
-void Filter() {
-    curTimeStamp = millis();
-
-    // 1. Collect Data from ADXL
-    // 2. Mean Filter
-    // take 10 sample for acceleration's average
-    accumulated_idx = 0;
-    while (accumulated_idx < ACCUMULATED_AMOUNT) {
-        // accelerometer.getAcceleration(curA + 0, curA + 1, curA + 2);
-        // we only care about acceleration on Z-Axis
-        accelerometer.getAcc_Z(As + accumulated_idx);
-        curA += As[accumulated_idx];
-        accumulated_idx++;
-    }
-    curA = curA / ACCUMULATED_AMOUNT;
-
-    // 3. Exponential Moving Average
-    curA = curA * alpha + (1.0 - alpha) * preA;
-
-    // 4. stored the value into IntegralInfo
-    IntegralInfo* info = (IntegralInfo*)malloc(sizeof(*info));
-    info->timeStamp = curTimeStamp;
-    info->value = curA;
-
-    // 5. set the isNewDataComing flag to true, let the Task on Core 0 enable to work
-    isNewDataComing = true;
-
-    // // serial print current time stamp
-    // Serial.print(curTimeStamp);
-
-    // // and accelerator input
-    // Serial.print(",");
-    // Serial.println(curA[2]);
-}
-
-void SendData() {
+void DataUpload() {
     // Send Data with json format to WebServer via Wifi Http Request
 
-    // 1. Check isNewDataComing Flag first
-    // DO NOT send data if no new data coming
-    if (isNewDataComing) {
-        return;
-    }
+    // // 1. Check isNewDataComing Flag first
+    // // DO NOT send data if no new data coming
+    // if (isNewDataComing) {
+    //     return;
+    // }
 
     // 2. Check WiFi connection status
     if (WiFi.status() == WL_CONNECTED) {
@@ -130,15 +66,19 @@ void SendData() {
         http.addHeader("Content-Type", "application/json");              //Specify content-type header
 
         // TODO : POST CONTENT
-        int httpResponseCode = http.POST("POSTING from ESP32");   //Send the actual POST request
+        String content = "{\"id\":\"1\"}";
+        int httpResponseCode = http.POST(content);   //Send the actual POST request
         // int httpResponseCode = http.GET();
 
         // 4. Check Response
         if (httpResponseCode > 0) {
             String response = http.getString();   //Get the response to the request
 
-            Serial.println(httpResponseCode);   //Print return code
-            Serial.println(response);           //Print request answer
+            DEBUG(httpResponseCode);
+            DEBUG(response);
+
+            // Serial.println(httpResponseCode);   //Print return code
+            // Serial.println(response);           //Print request answer
 
         } else {
             Serial.print("Error : ");
@@ -152,39 +92,35 @@ void SendData() {
     }
 }
 
-/*******************************************************************************/
-// Tasks in Core 0
-// 1: ADXL335 Double Integration
-// 2: Hardware Control (like LED)
-
-void TaskonCore0(void* pvParameters) {
-    for (;;) {
-        if (isNewDataComing) {
-            A2D();
-            LEDControl();
-        }
-    }
-}
-
-void A2D() {
-    // 加速度 轉 位移
-}
-
-void LEDControl() {
+void SMDLEDControl() {
     // 提供 按壓是否太快或太慢的資訊給使用者
 }
 
 /*******************************************************************************/
 
+void TaskonCore0(void* pvParameters) {
+    // Setup for Core 0
+    /* Code */
+
+    // Loop for Core 0
+    for (;;) {
+        // busy-looping until NFC Flag being triggered
+        if (isNewDataComing) {
+            // do work
+            DataUpload();
+            SMDLEDControl();
+
+            // set the NDC Flag to false
+            isNewDataComing = false;
+        }
+    }
+}
+
 void setup() {
+    // GLOBAL SETUP
+
     // Serial Configuration
     Serial.begin(BAUDRATE);
-
-    //
-    accelerometer.begin();
-
-    //
-    initData();
 
     // Wifi Connection
     delay(4000);   //Delay needed before calling the WiFi.begin
@@ -208,9 +144,17 @@ void setup() {
     );
 }
 
+// Exponential Moving Average
+float alpha = 0.6;
+float preA = 0.0;
+
 void loop() {
-    Filter();
-    SendData();
+    // Loop for Core 1
+    // Tasks in Core 1
+    // 1: Flex Resistance
+    // 2: AD8232
+    // 3: BME280
+    // 4: FSR404
 }
 
 /*******************************************************************************/
