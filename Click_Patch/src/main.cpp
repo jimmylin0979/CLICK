@@ -45,14 +45,20 @@ bool isNewDataComing = false;   // a flag to check whether there's a new data co
 /*******************************************************************************/
 
 // DFPlayer_Mini
-#define DFPLAYER_RX 16
-#define DFPLAYER_TX 17
+#define DFPLAYER_PIN_RX 16
+#define DFPLAYER_PIN_TX 17
 HardwareSerial softwareSerial_channel1(1);
 DFRobotDFPlayerMini DFPlayer;
 
 // Wifi HotSpot
 const char* ssid = "realme X3";
 const char* password = "0979268400";
+
+// FSR 404
+#define FSR404_PIN 33
+
+// Flex Resistance
+#define FLEX_PIN 32
 
 void setup() {
     // GLOBAL SETUP
@@ -61,8 +67,8 @@ void setup() {
     Serial.begin(BAUDRATE);
 
     // 1. DFPlayer_Mini Configuration
-    softwareSerial_channel1.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);   // 1-1 : Start softwareSerial via function begin(BAUDRATE, SERIAL MODE, RX, TX)
-    if (!DFPlayer.begin(softwareSerial_channel1)) {                              // 1-2 : Use softwareSerial to communicate with mp3.
+    softwareSerial_channel1.begin(9600, SERIAL_8N1, DFPLAYER_PIN_RX, DFPLAYER_PIN_TX);   // 1-1 : Start softwareSerial via function begin(BAUDRATE, SERIAL MODE, RX, TX)
+    if (!DFPlayer.begin(softwareSerial_channel1)) {                                      // 1-2 : Use softwareSerial to communicate with mp3.
         Serial.println(DFPlayer.readType(), HEX);
         Serial.println("[STATE] 1. DFPlayer_Mini : FAILED");
         while (true)
@@ -83,14 +89,16 @@ void setup() {
     Serial.print("[INFO] DFPlayer_MIni.CurrentFileNumber : ");
     Serial.println(DFPlayer.readCurrentFileNumber());
 
-    // 2. Wifi Connection
-    delay(4000);                              // 2-1 : Delay needed before calling the WiFi.begin
-    WiFi.begin(ssid, password);               // 2-2 : Connect to Wifi via ssid & password
-    while (WiFi.status() != WL_CONNECTED) {   // 2-3 : Check for the Wifi connection
-        delay(1000);
-        Serial.println("[SETUP] Connecting to WiFi ...");
-    }
-    Serial.println("[STATE] 2. Wifi : OK");
+    // 2. AD8232
+    // 3. BME280
+
+    // 4. FSR404 Configuration
+    pinMode(FSR404_PIN, INPUT);
+    Serial.println("[STATE] 4. FSR404 : OK");
+
+    // 5. Flex Resiatnce
+    pinMode(FLEX_PIN, INPUT);
+    Serial.println("[STATE] 5. Flex Resistace : OK");
 
     // Start Task on Core 0
     // 在 核心0 啟動 任務1
@@ -179,7 +187,16 @@ void SMDLEDControl() {
 
 void TaskonCore0(void* pvParameters) {
     // Setup for Core 0
-    /* Code */
+    // 1. SMD LED Configuration
+
+    // 2. Wifi Connection
+    delay(4000);                              // 2-1 : Delay needed before calling the WiFi.begin
+    WiFi.begin(ssid, password);               // 2-2 : Connect to Wifi via ssid & password
+    while (WiFi.status() != WL_CONNECTED) {   // 2-3 : Check for the Wifi connection
+        delay(1000);
+        Serial.println("[SETUP] Connecting to WiFi ...");
+    }
+    Serial.println("[STATE] 2. Wifi : OK");
 
     // Loop for Core 0
     for (;;) {
