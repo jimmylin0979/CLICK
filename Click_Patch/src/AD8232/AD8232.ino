@@ -1,0 +1,30 @@
+/*
+ * VARIABLES
+ * count: variable to hold count of rr peaks detected in 10 seconds
+ * flag: variable that prevents multiple rr peak detections in a single heatbeat
+ * hr: HeartRate (initialised to 72)
+ * hrv: Heart Rate variability (takes 10-15 seconds to stabilise)
+ * instance1: instance when heart beat first time
+ * interval: interval between second beat and first beat
+ * timer: variable to hold the time after which hr is calculated
+ * value: raw sensor value of output pin
+ */
+
+#include <Arduino.h>
+
+void setup() {
+    // initialize the serial communication:
+    Serial.begin(9600);
+    pinMode(8, INPUT);   // Setup for leads off detection LO +
+    pinMode(9, INPUT);   // Setup for leads off detection LO -
+}
+
+void loop() {
+    if ((digitalRead(8) == 1) || (digitalRead(9) == 1)) {
+        Serial.println("!");
+    } else {
+        // send the value of analog input 0:
+        Serial.println(analogRead(A0));
+    }
+    //Wait for a bit to keep serial data from saturating
+}
