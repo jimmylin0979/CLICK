@@ -1,4 +1,3 @@
-
 #include <Wire.h>
 #include <sSense-BMx280I2C.h>
 #define SERIAL_SPEED 115200

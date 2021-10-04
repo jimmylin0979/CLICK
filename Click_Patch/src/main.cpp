@@ -4,20 +4,57 @@
 
 // DFPlayer_Mini Control
 #include "DFRobotDFPlayerMini.h"
+#define DFPLAYER_SMDLED_PIN_RX 16
+#define DFPLAYER_SMDLED_PIN_TX 17
+HardwareSerial softwareSerial_channel1(1);
+DFRobotDFPlayerMini CPN_DFPlayer;
+
+// BME280
+#include <Wire.h>
+#include <sSense-BMx280I2C.h>
+BMx280I2C::Settings BME280_Settings(
+    BME280::OSR_X1,
+    BME280::OSR_X1,
+    BME280::OSR_X1,
+    BME280::Mode_Forced,
+    BME280::StandbyTime_1000ms,
+    BME280::Filter_Off,
+    BME280::SpiEnable_False,
+    0x76   // I2C address. I2C specific.
+);
+BMx280I2C CPN_BME280(BME280_Settings);
+
+// SMD LED
+#include <Adafruit_NeoPixel.h>
+#ifdef __AVR__
+#include <avr/power.h>   // Required for 16 MHz Adafruit Trinket
+#endif
+#define SMDLED_CONFIG_DURATION 4000
+#define SMDLED_CONFIG_FULL_BRIGHTNESS 255
+#define SMDLED_CONFIG_NUMPIXELS 17
+#define SMDLED_PIN 27
+Adafruit_NeoPixel CPN_SMDLED(SMDLED_CONFIG_NUMPIXELS, SMDLED_PIN, NEO_GRB + NEO_KHZ800);
+
+// FSR 404
+#define FSR404_PIN 33
+
+// Flex Resistance
+#define FLEX_PIN 32
 
 /*******************************************************************************/
 /* DEBUG MACRO */
 #define __DEBUG__
 
 #ifdef __DEBUG__
-#define DEBUG(...)                   \
-    Serial.println(__VA_ARGS__);     \
-    Serial.print(" @ [SRC]:      "); \
-    Serial.println(__FILE__);        \
-    Serial.print(" @ [LINE]:     "); \
-    Serial.println(__LINE__);        \
-    Serial.print(" @ [FUNCTION]: "); \
-    Serial.println(__func__);
+#define DEBUG(...)                  \
+    Serial.print("@[SRC]: ");       \
+    Serial.print(__FILE__);         \
+    Serial.print("\t@[LINE]: ");    \
+    Serial.print(__LINE__);         \
+    Serial.print("\t@[FUNCTION]:"); \
+    Serial.print(__func__);         \
+    Serial.print("\t");             \
+    Serial.println(__VA_ARGS__);
 #else
 // else DEBUG is diabled
 #define DEBUG(...)
@@ -44,21 +81,9 @@ bool isNewDataComing = false;   // a flag to check whether there's a new data co
 
 /*******************************************************************************/
 
-// DFPlayer_Mini
-#define DFPLAYER_PIN_RX 16
-#define DFPLAYER_PIN_TX 17
-HardwareSerial softwareSerial_channel1(1);
-DFRobotDFPlayerMini DFPlayer;
-
 // Wifi HotSpot
 const char* ssid = "realme X3";
 const char* password = "0979268400";
-
-// FSR 404
-#define FSR404_PIN 33
-
-// Flex Resistance
-#define FLEX_PIN 32
 
 void setup() {
     // GLOBAL SETUP
@@ -67,30 +92,36 @@ void setup() {
     Serial.begin(BAUDRATE);
 
     // 1. DFPlayer_Mini Configuration
-    softwareSerial_channel1.begin(9600, SERIAL_8N1, DFPLAYER_PIN_RX, DFPLAYER_PIN_TX);   // 1-1 : Start softwareSerial via function begin(BAUDRATE, SERIAL MODE, RX, TX)
-    if (!DFPlayer.begin(softwareSerial_channel1)) {                                      // 1-2 : Use softwareSerial to communicate with mp3.
-        Serial.println(DFPlayer.readType(), HEX);
+    softwareSerial_channel1.begin(9600, SERIAL_8N1, DFPLAYER_SMDLED_PIN_RX, DFPLAYER_SMDLED_PIN_TX);   // 1-1 : Start softwareSerial via function begin(BAUDRATE, SERIAL MODE, RX, TX)
+    if (!CPN_DFPlayer.begin(softwareSerial_channel1)) {                                                // 1-2 : Use softwareSerial to communicate with mp3.
+        Serial.println(CPN_DFPlayer.readType(), HEX);
         Serial.println("[STATE] 1. DFPlayer_Mini : FAILED");
         while (true)
             ;
     }
-    DFPlayer.setTimeOut(500);                    // 1-3 : Set Serial Communication TimeOut 500ms
-    DFPlayer.volume(30);                         // 1-3 : Set Volume, range from 0~30
-    DFPlayer.EQ(DFPLAYER_EQ_NORMAL);             // 1-3 : Set Different EQ
-    DFPlayer.outputDevice(DFPLAYER_DEVICE_SD);   // 1-3 : Set Device output, Use SD Card as Default
-    DFPlayer.play(1);                            // 1-4 : Start Playing 0001.mp3
+    CPN_DFPlayer.setTimeOut(500);                    // 1-3 : Set Serial Communication TimeOut 500ms
+    CPN_DFPlayer.volume(30);                         // 1-3 : Set Volume, range from 0~30
+    CPN_DFPlayer.EQ(DFPLAYER_EQ_NORMAL);             // 1-3 : Set Different EQ
+    CPN_DFPlayer.outputDevice(DFPLAYER_DEVICE_SD);   // 1-3 : Set Device output, Use SD Card as Default
+    CPN_DFPlayer.play(1);                            // 1-4 : Start Playing 0001.mp3
     Serial.println("[STATE] 1. DFPlayer_Mini : OK");
     Serial.print("[INFO] DFPlayer_MIni.State : ");
-    Serial.println(DFPlayer.readState());
+    Serial.println(CPN_DFPlayer.readState());
     Serial.print("[INFO] DFPlayer_MIni.Volume : ");
-    Serial.println(DFPlayer.readVolume());
+    Serial.println(CPN_DFPlayer.readVolume());
     Serial.print("[INFO] DFPlayer_MIni.FileCounts : ");
-    Serial.println(DFPlayer.readFileCounts());
+    Serial.println(CPN_DFPlayer.readFileCounts());
     Serial.print("[INFO] DFPlayer_MIni.CurrentFileNumber : ");
-    Serial.println(DFPlayer.readCurrentFileNumber());
+    Serial.println(CPN_DFPlayer.readCurrentFileNumber());
 
     // 2. AD8232
     // 3. BME280
+    Wire.begin();
+    while (!CPN_BME280.begin()) {
+        delay(100);
+    }
+    BME280_Settings.tempOSR = BME280::OSR_X4;
+    CPN_BME280.setSettings(BME280_Settings);
 
     // 4. FSR404 Configuration
     pinMode(FSR404_PIN, INPUT);
@@ -100,33 +131,60 @@ void setup() {
     pinMode(FLEX_PIN, INPUT);
     Serial.println("[STATE] 5. Flex Resistace : OK");
 
-    // Start Task on Core 0
-    // 在 核心0 啟動 任務1
-    xTaskCreatePinnedToCore(
-        TaskonCore0,   // 任務實際對應的Function
-        "Task1",       // 任務名稱
-        10000,         // 堆疊空間
-        NULL,          // 無輸入值
-        0,             // 優先序 0
-        NULL,          // 對應的任務變數位址
-        0              // 指定在核心0執行
-    );
-    Serial.println("[STATE] TaskOnCore0 : OK");
+    // // Start Task on Core 0
+    // // 在 核心0 啟動 任務1
+    // xTaskCreateSMDLED_PINnedToCore(
+    //     TaskonCore0,   // 任務實際對應的Function
+    //     "Task1",       // 任務名稱
+    //     10000,         // 堆疊空間
+    //     NULL,          // 無輸入值
+    //     0,             // 優先序 0
+    //     NULL,          // 對應的任務變數位址
+    //     0              // 指定在核心0執行
+    // );
+    // Serial.println("[STATE] TaskOnCore0 : OK");
 }
 
 // Exponential Moving Average
 float alpha = 0.6;
 float preA = 0.0;
 
+// BME280
+int interval = 10;
+int times = 0;
+float interval_value = 0;
+float avg_pres = 0;
+
 void loop() {
     // Loop for Core 1
     // Tasks in Core 1
     // 1: DFPlayer_Mini
     // 2: AD8232
+
     // 3: BME280
+    float temp(NAN), hum(NAN), pres(NAN);
+    BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+    BME280::PresUnit presUnit(BME280::PresUnit_Pa);
+
+    CPN_BME280.read(pres, temp, hum, tempUnit, presUnit);
+    times++;
+    interval_value += pres;
+    if (times == interval) {
+        avg_pres = interval_value / interval;
+        DEBUG(avg_pres);
+        interval_value = 0;
+        times = 0;
+    }
+
     // 4: FSR404
+    int FSR404_Pressure = analogRead(FSR404_PIN);
+    DEBUG(FSR404_Pressure);
+
     // 5: Flex Resistance
-    //
+    int Flex_Value = analogRead(FLEX_PIN);
+    DEBUG(Flex_Value);
+
+    delay(500);
 }
 
 /*******************************************************************************/
@@ -181,13 +239,32 @@ void DataUpload() {
 
 void SMDLEDControl() {
     // 提供 按壓是否太快或太慢的資訊給使用者
+    CPN_SMDLED.clear();   // Set all pixel colors to 'off'
+
+    for (int brightness = 0; brightness <= SMDLED_CONFIG_FULL_BRIGHTNESS; brightness++) {
+        for (int i = 0; i <= SMDLED_CONFIG_NUMPIXELS; i++) {   // For each pixel...
+            CPN_SMDLED.setPixelColor(i, CPN_SMDLED.Color(brightness, 0, 0));
+        }
+        CPN_SMDLED.show();                                               // Send the updated pixel colors to the hardware.
+        delay(SMDLED_CONFIG_DURATION / SMDLED_CONFIG_FULL_BRIGHTNESS);   // Pause before next pass through loop
+        Serial.print(brightness);
+        Serial.print(" ");
+    }
 }
 
 /*******************************************************************************/
 
 void TaskonCore0(void* pvParameters) {
     // Setup for Core 0
+
     // 1. SMD LED Configuration
+    // These lines are specifically to support the Adafruit Trinket 5V 16 MHz.
+    // Any other board, you can remove this part (but no harm leaving it):
+#if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+    clock_prescale_set(clock_div_1);
+#endif
+    // END of Trinket-specific code.
+    CPN_SMDLED.begin();   // INITIALIZE NeoPixel strip object (REQUIRED)
 
     // 2. Wifi Connection
     delay(4000);                              // 2-1 : Delay needed before calling the WiFi.begin
@@ -200,7 +277,7 @@ void TaskonCore0(void* pvParameters) {
 
     // Loop for Core 0
     for (;;) {
-        // busy-looping until NFC Flag being triggered
+        // busy-looSMDLED_PINg until NFC Flag being triggered
         if (isNewDataComing) {
             // do work
             DataUpload();
