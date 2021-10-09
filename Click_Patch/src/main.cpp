@@ -31,7 +31,7 @@ BMx280I2C CPN_BME280(BME280_Settings);
 #endif
 #define SMDLED_CONFIG_DURATION 4000
 #define SMDLED_CONFIG_FULL_BRIGHTNESS 255
-#define SMDLED_CONFIG_NUMPIXELS 17
+#define SMDLED_CONFIG_NUMPIXELS 5
 #define SMDLED_PIN 27
 Adafruit_NeoPixel CPN_SMDLED(SMDLED_CONFIG_NUMPIXELS, SMDLED_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -40,6 +40,12 @@ Adafruit_NeoPixel CPN_SMDLED(SMDLED_CONFIG_NUMPIXELS, SMDLED_PIN, NEO_GRB + NEO_
 
 // Flex Resistance
 #define FLEX_PIN 32
+#define FLEX_VCC 3.3
+#define FLEX_FLAT_RESISTANCE 100
+#define FLEX_BEND_RESISTANCE 100
+#define FLEX_DOWNPULL_RESISTANCE 10000
+int Flex_Value = 0;
+float Flex_Depth = 0.0;
 
 /*******************************************************************************/
 /* DEBUG MACRO */
@@ -91,42 +97,42 @@ void setup() {
     // Serial Configuration
     Serial.begin(BAUDRATE);
 
-    // 1. DFPlayer_Mini Configuration
-    softwareSerial_channel1.begin(9600, SERIAL_8N1, DFPLAYER_SMDLED_PIN_RX, DFPLAYER_SMDLED_PIN_TX);   // 1-1 : Start softwareSerial via function begin(BAUDRATE, SERIAL MODE, RX, TX)
-    if (!CPN_DFPlayer.begin(softwareSerial_channel1)) {                                                // 1-2 : Use softwareSerial to communicate with mp3.
-        Serial.println(CPN_DFPlayer.readType(), HEX);
-        Serial.println("[STATE] 1. DFPlayer_Mini : FAILED");
-        while (true)
-            ;
-    }
-    CPN_DFPlayer.setTimeOut(500);                    // 1-3 : Set Serial Communication TimeOut 500ms
-    CPN_DFPlayer.volume(30);                         // 1-3 : Set Volume, range from 0~30
-    CPN_DFPlayer.EQ(DFPLAYER_EQ_NORMAL);             // 1-3 : Set Different EQ
-    CPN_DFPlayer.outputDevice(DFPLAYER_DEVICE_SD);   // 1-3 : Set Device output, Use SD Card as Default
-    CPN_DFPlayer.play(1);                            // 1-4 : Start Playing 0001.mp3
-    Serial.println("[STATE] 1. DFPlayer_Mini : OK");
-    Serial.print("[INFO] DFPlayer_MIni.State : ");
-    Serial.println(CPN_DFPlayer.readState());
-    Serial.print("[INFO] DFPlayer_MIni.Volume : ");
-    Serial.println(CPN_DFPlayer.readVolume());
-    Serial.print("[INFO] DFPlayer_MIni.FileCounts : ");
-    Serial.println(CPN_DFPlayer.readFileCounts());
-    Serial.print("[INFO] DFPlayer_MIni.CurrentFileNumber : ");
-    Serial.println(CPN_DFPlayer.readCurrentFileNumber());
+    // // 1. DFPlayer_Mini Configuration
+    // softwareSerial_channel1.begin(9600, SERIAL_8N1, DFPLAYER_SMDLED_PIN_RX, DFPLAYER_SMDLED_PIN_TX);   // 1-1 : Start softwareSerial via function begin(BAUDRATE, SERIAL MODE, RX, TX)
+    // if (!CPN_DFPlayer.begin(softwareSerial_channel1)) {                                                // 1-2 : Use softwareSerial to communicate with mp3.
+    //     Serial.println(CPN_DFPlayer.readType(), HEX);
+    //     Serial.println("[STATE] 1. DFPlayer_Mini : FAILED");
+    //     while (true)
+    //         ;
+    // }
+    // CPN_DFPlayer.setTimeOut(500);                    // 1-3 : Set Serial Communication TimeOut 500ms
+    // CPN_DFPlayer.volume(30);                         // 1-3 : Set Volume, range from 0~30
+    // CPN_DFPlayer.EQ(DFPLAYER_EQ_NORMAL);             // 1-3 : Set Different EQ
+    // CPN_DFPlayer.outputDevice(DFPLAYER_DEVICE_SD);   // 1-3 : Set Device output, Use SD Card as Default
+    // CPN_DFPlayer.play(1);                            // 1-4 : Start Playing 0001.mp3
+    // Serial.println("[STATE] 1. DFPlayer_Mini : OK");
+    // Serial.print("[INFO] DFPlayer_MIni.State : ");
+    // Serial.println(CPN_DFPlayer.readState());
+    // Serial.print("[INFO] DFPlayer_MIni.Volume : ");
+    // Serial.println(CPN_DFPlayer.readVolume());
+    // Serial.print("[INFO] DFPlayer_MIni.FileCounts : ");
+    // Serial.println(CPN_DFPlayer.readFileCounts());
+    // Serial.print("[INFO] DFPlayer_MIni.CurrentFileNumber : ");
+    // Serial.println(CPN_DFPlayer.readCurrentFileNumber());
 
-    // 2. AD8232
-    // 3. BME280
-    Wire.begin();
-    while (!CPN_BME280.begin()) {
-        delay(100);
-    }
-    BME280_Settings.tempOSR = BME280::OSR_X4;
-    CPN_BME280.setSettings(BME280_Settings);
-    Serial.println("[STATE] 3. BME280 : OK");
+    // // 2. AD8232
+    // // 3. BME280
+    // Wire.begin();
+    // while (!CPN_BME280.begin()) {
+    //     delay(100);
+    // }
+    // BME280_Settings.tempOSR = BME280::OSR_X4;
+    // CPN_BME280.setSettings(BME280_Settings);
+    // Serial.println("[STATE] 3. BME280 : OK");
 
-    // 4. FSR404 Configuration
-    pinMode(FSR404_PIN, INPUT);
-    Serial.println("[STATE] 4. FSR404 : OK");
+    // // 4. FSR404 Configuration
+    // pinMode(FSR404_PIN, INPUT);
+    // Serial.println("[STATE] 4. FSR404 : OK");
 
     // 5. Flex Resiatnce
     pinMode(FLEX_PIN, INPUT);
@@ -157,33 +163,36 @@ float interval_value = 0;
 float avg_pres = 0;
 
 void loop() {
-    // Loop for Core 1
-    // Tasks in Core 1
-    // 1: DFPlayer_Mini
-    // 2: AD8232
+    // // Loop for Core 1
+    // // Tasks in Core 1
+    // // 1: DFPlayer_Mini
+    // // 2: AD8232
 
-    // 3: BME280
-    float temp(NAN), hum(NAN), pres(NAN);
-    BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
-    BME280::PresUnit presUnit(BME280::PresUnit_Pa);
+    // // 3: BME280
+    // float temp(NAN), hum(NAN), pres(NAN);
+    // BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+    // BME280::PresUnit presUnit(BME280::PresUnit_Pa);
 
-    CPN_BME280.read(pres, temp, hum, tempUnit, presUnit);
-    times++;
-    interval_value += pres;
-    if (times == interval) {
-        avg_pres = interval_value / interval;
-        DEBUG(avg_pres);
-        interval_value = 0;
-        times = 0;
-    }
+    // CPN_BME280.read(pres, temp, hum, tempUnit, presUnit);
+    // times++;
+    // interval_value += pres;
+    // if (times == interval) {
+    //     avg_pres = interval_value / interval;
+    //     DEBUG(avg_pres);
+    //     interval_value = 0;
+    //     times = 0;
+    // }
 
-    // 4: FSR404
-    int FSR404_Pressure = analogRead(FSR404_PIN);
-    DEBUG(FSR404_Pressure);
+    // // 4: FSR404
+    // int FSR404_Pressure = analogRead(FSR404_PIN);
+    // DEBUG(FSR404_Pressure);
 
     // 5: Flex Resistance
-    int Flex_Value = analogRead(FLEX_PIN);
+    Flex_Value = analogRead(FLEX_PIN);
     DEBUG(Flex_Value);
+
+    // After all, set the new data coming Flag to true
+    isNewDataComing = true;
 
     delay(500);
 }
@@ -196,12 +205,6 @@ void loop() {
 
 void DataUpload() {
     // Send Data with json format to WebServer via Wifi Http Request
-
-    // // 1. Check isNewDataComing Flag first
-    // // DO NOT send data if no new data coming
-    // if (isNewDataComing) {
-    //     return;
-    // }
 
     // 2. Check WiFi connection status
     if (WiFi.status() == WL_CONNECTED) {
@@ -240,17 +243,55 @@ void DataUpload() {
 
 void SMDLEDControl() {
     // 提供 按壓是否太快或太慢的資訊給使用者
-    CPN_SMDLED.clear();   // Set all pixel colors to 'off'
 
-    for (int brightness = 0; brightness <= SMDLED_CONFIG_FULL_BRIGHTNESS; brightness++) {
-        for (int i = 0; i <= SMDLED_CONFIG_NUMPIXELS; i++) {   // For each pixel...
-            CPN_SMDLED.setPixelColor(i, CPN_SMDLED.Color(brightness, 0, 0));
-        }
-        CPN_SMDLED.show();                                               // Send the updated pixel colors to the hardware.
-        delay(SMDLED_CONFIG_DURATION / SMDLED_CONFIG_FULL_BRIGHTNESS);   // Pause before next pass through loop
-        Serial.print(brightness);
-        Serial.print(" ");
+    // 1. 由 Flex Sensor 電阻值 估算 按壓深度
+    // Read the ADC, and calculate voltage and resistance from it
+    float Flex_Voltage = Flex_Value * FLEX_VCC / 4096.0;
+    float Flex_Resistance = FLEX_DOWNPULL_RESISTANCE * (FLEX_VCC / Flex_Voltage - 1.0);
+    Serial.println("Resistance: " + String(Flex_Resistance) + " ohms");
+
+    // Use the calculated resistance to estimate the sensor's bend angle:
+    int Flex_Angle = map(Flex_Resistance, FLEX_FLAT_RESISTANCE, FLEX_BEND_RESISTANCE, 0, 90.0);
+    Serial.println("Bend: " + String(Flex_Angle) + " degrees");
+    Serial.println();
+
+    Flex_Depth = 0;
+    // TODO
+    // 依照角度區間 來給予 深度等級
+    switch (Flex_Angle / 10) {
+        case 0:
+            Flex_Depth = 0;
+            break;
+        case 1:
+        case 2:
+            Flex_Depth = 1;
+            break;
+        case 3:
+        case 4:
+            Flex_Depth = 2;
+            break;
+        case 5:
+        case 6:
+            Flex_Depth = 3;
+            break;
+        case 7:
+        case 8:
+        case 9:
+            Flex_Depth = 4;
+            break;
+        default:
+            break;
     }
+
+    // 2. SMD LED 亮度提示
+    CPN_SMDLED.clear();                                    // Set all pixel colors to 'off'
+    for (int i = 0; i <= SMDLED_CONFIG_NUMPIXELS; i++) {   // For each pixel...
+        // SMD LED 會隨著深度 改變 亮著的 LED 燈顆數
+        if (i > Flex_Depth) break;
+        CPN_SMDLED.setPixelColor(i, CPN_SMDLED.Color(255, 0, 0));
+    }
+    CPN_SMDLED.show();   // Send the updated pixel colors to the hardware.
+    // delay(SMDLED_CONFIG_DURATION / SMDLED_CONFIG_FULL_BRIGHTNESS);   // Pause before next pass through loop
 }
 
 /*******************************************************************************/
@@ -286,6 +327,8 @@ void TaskonCore0(void* pvParameters) {
 
             // set the NDC Flag to false
             isNewDataComing = false;
+        } else {
+            delay(1);
         }
     }
 }
