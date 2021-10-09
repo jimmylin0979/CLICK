@@ -122,6 +122,7 @@ void setup() {
     }
     BME280_Settings.tempOSR = BME280::OSR_X4;
     CPN_BME280.setSettings(BME280_Settings);
+    Serial.println("[STATE] 3. BME280 : OK");
 
     // 4. FSR404 Configuration
     pinMode(FSR404_PIN, INPUT);
@@ -131,18 +132,18 @@ void setup() {
     pinMode(FLEX_PIN, INPUT);
     Serial.println("[STATE] 5. Flex Resistace : OK");
 
-    // // Start Task on Core 0
-    // // 在 核心0 啟動 任務1
-    // xTaskCreateSMDLED_PINnedToCore(
-    //     TaskonCore0,   // 任務實際對應的Function
-    //     "Task1",       // 任務名稱
-    //     10000,         // 堆疊空間
-    //     NULL,          // 無輸入值
-    //     0,             // 優先序 0
-    //     NULL,          // 對應的任務變數位址
-    //     0              // 指定在核心0執行
-    // );
-    // Serial.println("[STATE] TaskOnCore0 : OK");
+    // Start Task on Core 0
+    // 在 核心0 啟動 任務1
+    xTaskCreatePinnedToCore(
+        TaskonCore0,   // 任務實際對應的Function
+        "Task1",       // 任務名稱
+        10000,         // 堆疊空間
+        NULL,          // 無輸入值
+        0,             // 優先序 0
+        NULL,          // 對應的任務變數位址
+        0              // 指定在核心0執行
+    );
+    Serial.println("[STATE] TaskOnCore0 : OK");
 }
 
 // Exponential Moving Average
