@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
+#define COUNT(a) (sizeof(a) / sizeof(a[0]))
 
 // DFPlayer_Mini Control
 #include "DFRobotDFPlayerMini.h"
@@ -41,9 +42,11 @@ Adafruit_NeoPixel CPN_SMDLED(SMDLED_CONFIG_NUMPIXELS, SMDLED_PIN, NEO_GRB + NEO_
 // Flex Resistance
 #define FLEX_PIN 32
 #define FLEX_VCC 3.3
-#define FLEX_FLAT_RESISTANCE 100
-#define FLEX_BEND_RESISTANCE 100
+#define FLEX_FLAT_RESISTANCE 3786
+#define FLEX_BEND_RESISTANCE 7181
 #define FLEX_DOWNPULL_RESISTANCE 10000
+#define FLEX_LENGTH 10.5
+#define PI 3.1415926
 int Flex_Value = 0;
 float Flex_Depth = 0.0;
 
@@ -189,7 +192,7 @@ void loop() {
 
     // 5: Flex Resistance
     Flex_Value = analogRead(FLEX_PIN);
-    DEBUG(Flex_Value);
+    // DEBUG(Flex_Value);
 
     // After all, set the new data coming Flag to true
     isNewDataComing = true;
@@ -215,7 +218,17 @@ void DataUpload() {
         http.addHeader("Content-Type", "application/json");              //Specify content-type header
 
         // TODO : POST CONTENT
-        String content = "{\"id\":\"1\"}";
+        char content[100];
+        snprintf_P(
+            content,
+            COUNT(content),
+            PSTR("{\"CPR_Depth\":%02u, \"CPR_Freq\":%02u, \"Breath_Freq\":%02u}"),
+            Flex_Depth,
+            0,
+            0);
+        Serial.print("[INFO] ");
+        Serial.println(content);
+
         int httpResponseCode = http.POST(content);   //Send the actual POST request
         // int httpResponseCode = http.GET();
 
@@ -248,14 +261,15 @@ void SMDLEDControl() {
     // Read the ADC, and calculate voltage and resistance from it
     float Flex_Voltage = Flex_Value * FLEX_VCC / 4096.0;
     float Flex_Resistance = FLEX_DOWNPULL_RESISTANCE * (FLEX_VCC / Flex_Voltage - 1.0);
-    Serial.println("Resistance: " + String(Flex_Resistance) + " ohms");
 
     // Use the calculated resistance to estimate the sensor's bend angle:
     int Flex_Angle = map(Flex_Resistance, FLEX_FLAT_RESISTANCE, FLEX_BEND_RESISTANCE, 0, 90.0);
-    Serial.println("Bend: " + String(Flex_Angle) + " degrees");
-    Serial.println();
+    Flex_Depth = FLEX_LENGTH * sin(Flex_Angle * PI / 180);
 
-    Flex_Depth = 0;
+    Serial.print("[INFO] Resistance: " + String(Flex_Resistance) + " ohms");
+    Serial.print("\tBend: " + String(Flex_Angle) + " degrees");
+    Serial.println("\tDepth: " + String(Flex_Depth) + " cm");
+
     // TODO
     // 依照角度區間 來給予 深度等級
     switch (Flex_Angle / 10) {
@@ -307,6 +321,7 @@ void TaskonCore0(void* pvParameters) {
 #endif
     // END of Trinket-specific code.
     CPN_SMDLED.begin();   // INITIALIZE NeoPixel strip object (REQUIRED)
+    Serial.println("[STATE] 1. SMD LED: OK");
 
     // 2. Wifi Connection
     delay(4000);                              // 2-1 : Delay needed before calling the WiFi.begin
@@ -322,7 +337,7 @@ void TaskonCore0(void* pvParameters) {
         // busy-looSMDLED_PINg until NFC Flag being triggered
         if (isNewDataComing) {
             // do work
-            DataUpload();
+            // DataUpload();
             SMDLEDControl();
 
             // set the NDC Flag to false
