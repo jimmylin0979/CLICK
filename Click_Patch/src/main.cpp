@@ -33,8 +33,13 @@ BMx280I2C CPN_BME280(BME280_Settings);
 #define SMDLED_CONFIG_DURATION 4000
 #define SMDLED_CONFIG_FULL_BRIGHTNESS 255
 #define SMDLED_CONFIG_NUMPIXELS 5
-#define SMDLED_PIN 27
+#define SMDLED_PIN 18
 Adafruit_NeoPixel CPN_SMDLED(SMDLED_CONFIG_NUMPIXELS, SMDLED_PIN, NEO_GRB + NEO_KHZ800);
+
+// AD8232
+#define AD8232_PIN_LOPLUS 36
+#define AD8232_PIN_LOMINUS 39
+#define AD8232_PIN_OUTPUT 34
 
 // FSR 404
 #define FSR404_PIN 33
@@ -42,11 +47,10 @@ Adafruit_NeoPixel CPN_SMDLED(SMDLED_CONFIG_NUMPIXELS, SMDLED_PIN, NEO_GRB + NEO_
 // Flex Resistance
 #define FLEX_PIN 32
 #define FLEX_VCC 3.3
-#define FLEX_FLAT_RESISTANCE 3786
-#define FLEX_BEND_RESISTANCE 7181
+#define FLEX_FLAT_RESISTANCE 15400
+#define FLEX_BEND_RESISTANCE 31000
 #define FLEX_DOWNPULL_RESISTANCE 10000
 #define FLEX_LENGTH 10.5
-#define PI 3.1415926
 int Flex_Value = 0;
 float Flex_Depth = 0.0;
 
@@ -100,20 +104,20 @@ void setup() {
     // Serial Configuration
     Serial.begin(BAUDRATE);
 
-    // // 1. DFPlayer_Mini Configuration
-    // softwareSerial_channel1.begin(9600, SERIAL_8N1, DFPLAYER_SMDLED_PIN_RX, DFPLAYER_SMDLED_PIN_TX);   // 1-1 : Start softwareSerial via function begin(BAUDRATE, SERIAL MODE, RX, TX)
-    // if (!CPN_DFPlayer.begin(softwareSerial_channel1)) {                                                // 1-2 : Use softwareSerial to communicate with mp3.
-    //     Serial.println(CPN_DFPlayer.readType(), HEX);
-    //     Serial.println("[STATE] 1. DFPlayer_Mini : FAILED");
-    //     while (true)
-    //         ;
-    // }
-    // CPN_DFPlayer.setTimeOut(500);                    // 1-3 : Set Serial Communication TimeOut 500ms
-    // CPN_DFPlayer.volume(30);                         // 1-3 : Set Volume, range from 0~30
-    // CPN_DFPlayer.EQ(DFPLAYER_EQ_NORMAL);             // 1-3 : Set Different EQ
-    // CPN_DFPlayer.outputDevice(DFPLAYER_DEVICE_SD);   // 1-3 : Set Device output, Use SD Card as Default
-    // CPN_DFPlayer.play(1);                            // 1-4 : Start Playing 0001.mp3
-    // Serial.println("[STATE] 1. DFPlayer_Mini : OK");
+    // 1. DFPlayer_Mini Configuration
+    softwareSerial_channel1.begin(9600, SERIAL_8N1, DFPLAYER_SMDLED_PIN_RX, DFPLAYER_SMDLED_PIN_TX);   // 1-1 : Start softwareSerial via function begin(BAUDRATE, SERIAL MODE, RX, TX)
+    if (!CPN_DFPlayer.begin(softwareSerial_channel1)) {                                                // 1-2 : Use softwareSerial to communicate with mp3.
+        Serial.println(CPN_DFPlayer.readType(), HEX);
+        Serial.println("[STATE] 1. DFPlayer_Mini : FAILED");
+        while (true)
+            ;
+    }
+    CPN_DFPlayer.setTimeOut(500);                    // 1-3 : Set Serial Communication TimeOut 500ms
+    CPN_DFPlayer.volume(10);                         // 1-3 : Set Volume, range from 0~30
+    CPN_DFPlayer.EQ(DFPLAYER_EQ_NORMAL);             // 1-3 : Set Different EQ
+    CPN_DFPlayer.outputDevice(DFPLAYER_DEVICE_SD);   // 1-3 : Set Device output, Use SD Card as Default
+    CPN_DFPlayer.play(1);                            // 1-4 : Start Playing 0001.mp3
+    Serial.println("[STATE] 1. DFPlayer_Mini : OK");
     // Serial.print("[INFO] DFPlayer_MIni.State : ");
     // Serial.println(CPN_DFPlayer.readState());
     // Serial.print("[INFO] DFPlayer_MIni.Volume : ");
@@ -123,15 +127,15 @@ void setup() {
     // Serial.print("[INFO] DFPlayer_MIni.CurrentFileNumber : ");
     // Serial.println(CPN_DFPlayer.readCurrentFileNumber());
 
-    // // 2. AD8232
-    // // 3. BME280
-    // Wire.begin();
-    // while (!CPN_BME280.begin()) {
-    //     delay(100);
-    // }
-    // BME280_Settings.tempOSR = BME280::OSR_X4;
-    // CPN_BME280.setSettings(BME280_Settings);
-    // Serial.println("[STATE] 3. BME280 : OK");
+    // 2. AD8232
+    // 3. BME280
+    Wire.begin();
+    while (!CPN_BME280.begin()) {
+        delay(100);
+    }
+    BME280_Settings.tempOSR = BME280::OSR_X4;
+    CPN_BME280.setSettings(BME280_Settings);
+    Serial.println("[STATE] 3. BME280 : OK");
 
     // // 4. FSR404 Configuration
     // pinMode(FSR404_PIN, INPUT);
@@ -169,16 +173,23 @@ void loop() {
     // // Loop for Core 1
     // // Tasks in Core 1
     // // 1: DFPlayer_Mini
-    // // 2: AD8232
 
-    // // 3: BME280
-    // float temp(NAN), hum(NAN), pres(NAN);
-    // BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
-    // BME280::PresUnit presUnit(BME280::PresUnit_Pa);
+    // 2: AD8232
+    if ((digitalRead(AD8232_PIN_LOPLUS) == 1) || (digitalRead(AD8232_PIN_LOMINUS) == 1)) {
+        // Serial.println("[INFO]");
+    } else {
+        DEBUG(analogRead(AD8232_PIN_OUTPUT));
+    }
 
-    // CPN_BME280.read(pres, temp, hum, tempUnit, presUnit);
-    // times++;
-    // interval_value += pres;
+    // 3: BME280
+    float temp(NAN), hum(NAN), pres(NAN);
+    BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+    BME280::PresUnit presUnit(BME280::PresUnit_Pa);
+
+    CPN_BME280.read(pres, temp, hum, tempUnit, presUnit);
+    times++;
+    interval_value += pres;
+    DEBUG(pres);
     // if (times == interval) {
     //     avg_pres = interval_value / interval;
     //     DEBUG(avg_pres);
@@ -294,6 +305,7 @@ void SMDLEDControl() {
             Flex_Depth = 4;
             break;
         default:
+            Flex_Depth = 4;
             break;
     }
 
