@@ -13,6 +13,10 @@ DFRobotDFPlayerMini CPN_DFPlayer;
 // BME280
 #include <Wire.h>
 #include <sSense-BMx280I2C.h>
+#define BME280_SAMPLE_INTERVAL 10
+int BME280_Times = 0;
+float BME280_Interval_Value = 0;
+int BME280_AvgPres = 0;
 BMx280I2C::Settings BME280_Settings(
     BME280::OSR_X1,
     BME280::OSR_X1,
@@ -40,9 +44,13 @@ Adafruit_NeoPixel CPN_SMDLED(SMDLED_CONFIG_NUMPIXELS, SMDLED_PIN, NEO_GRB + NEO_
 #define AD8232_PIN_LOPLUS 36
 #define AD8232_PIN_LOMINUS 39
 #define AD8232_PIN_OUTPUT 34
+int AD8232_OutputValue;
 
 // FSR 404
 #define FSR404_PIN 33
+#define FSR404_VALUE_THRESHOLD 3600
+int FSR404_Value_PreviousPressTime = 0;
+int FSR404_Freq = 0;
 
 // Flex Resistance
 #define FLEX_PIN 32
@@ -137,9 +145,10 @@ void setup() {
     CPN_BME280.setSettings(BME280_Settings);
     Serial.println("[STATE] 3. BME280 : OK");
 
-    // // 4. FSR404 Configuration
-    // pinMode(FSR404_PIN, INPUT);
-    // Serial.println("[STATE] 4. FSR404 : OK");
+    // 4. FSR404 Configuration
+    pinMode(FSR404_PIN, INPUT);
+    FSR404_Value_PreviousPressTime = millis();
+    Serial.println("[STATE] 4. FSR404 : OK");
 
     // 5. Flex Resiatnce
     pinMode(FLEX_PIN, INPUT);
@@ -163,45 +172,46 @@ void setup() {
 float alpha = 0.6;
 float preA = 0.0;
 
-// BME280
-int interval = 10;
-int times = 0;
-float interval_value = 0;
-float avg_pres = 0;
-
 void loop() {
     // // Loop for Core 1
     // // Tasks in Core 1
     // // 1: DFPlayer_Mini
 
-    // 2: AD8232
+    // * 2: AD8232
     if ((digitalRead(AD8232_PIN_LOPLUS) == 1) || (digitalRead(AD8232_PIN_LOMINUS) == 1)) {
         // Serial.println("[INFO]");
     } else {
-        DEBUG(analogRead(AD8232_PIN_OUTPUT));
+        AD8232_OutputValue = analogRead(AD8232_PIN_OUTPUT);
+        DEBUG(AD8232_OutputValue);
     }
 
-    // 3: BME280
+    // * 3: BME280
     float temp(NAN), hum(NAN), pres(NAN);
     BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
     BME280::PresUnit presUnit(BME280::PresUnit_Pa);
 
     CPN_BME280.read(pres, temp, hum, tempUnit, presUnit);
-    times++;
-    interval_value += pres;
-    DEBUG(pres);
-    // if (times == interval) {
-    //     avg_pres = interval_value / interval;
-    //     DEBUG(avg_pres);
-    //     interval_value = 0;
-    //     times = 0;
-    // }
+    BME280_Times++;
+    BME280_Interval_Value += pres;
+    if (BME280_Times == BME280_SAMPLE_INTERVAL) {
+        BME280_AvgPres = BME280_Interval_Value / BME280_SAMPLE_INTERVAL;
+        DEBUG(BME280_AvgPres);
+        BME280_Interval_Value = 0;
+        BME280_Times = 0;
+    }
 
-    // // 4: FSR404
-    // int FSR404_Pressure = analogRead(FSR404_PIN);
+    // TODO : 將 FSR 與 彎曲電阻 交叉比較
+    // * 4: FSR404
+    int FSR404_Pressure = analogRead(FSR404_PIN);
+    if (FSR404_Pressure >= FSR404_VALUE_THRESHOLD) {
+        // 藉由 FSR404 兩次按壓的間隔毫秒數，計算每分鐘按壓頻率
+        // 60000 = 60 (1min = 60s) * 1000 (1s = 1000ms)
+        FSR404_Freq = 60000 / (millis() - FSR404_Value_PreviousPressTime);
+        FSR404_Value_PreviousPressTime = millis();
+    }
     // DEBUG(FSR404_Pressure);
 
-    // 5: Flex Resistance
+    // * 5: Flex Resistance
     Flex_Value = analogRead(FLEX_PIN);
     // DEBUG(Flex_Value);
 
@@ -233,10 +243,11 @@ void DataUpload() {
         snprintf_P(
             content,
             COUNT(content),
-            PSTR("{\"CPR_Depth\":%02u, \"CPR_Freq\":%02u, \"Breath_Freq\":%02u}"),
+            PSTR("{\"CPR_Depth\":%02u, \"CPR_Freq\":%02u, \"Breath_Freq\":%02u, \"HeartRate\":%02u}"),
             Flex_Depth,
-            0,
-            0);
+            FSR404_Freq,
+            BME280_AvgPres,
+            AD8232_OutputValue);
         Serial.print("[INFO] ");
         Serial.println(content);
 
@@ -325,7 +336,7 @@ void SMDLEDControl() {
 void TaskonCore0(void* pvParameters) {
     // Setup for Core 0
 
-    // 1. SMD LED Configuration
+    // * 1. SMD LED Configuration
     // These lines are specifically to support the Adafruit Trinket 5V 16 MHz.
     // Any other board, you can remove this part (but no harm leaving it):
 #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
@@ -335,7 +346,7 @@ void TaskonCore0(void* pvParameters) {
     CPN_SMDLED.begin();   // INITIALIZE NeoPixel strip object (REQUIRED)
     Serial.println("[STATE] 1. SMD LED: OK");
 
-    // 2. Wifi Connection
+    // * 2. Wifi Connection
     delay(4000);                              // 2-1 : Delay needed before calling the WiFi.begin
     WiFi.begin(ssid, password);               // 2-2 : Connect to Wifi via ssid & password
     while (WiFi.status() != WL_CONNECTED) {   // 2-3 : Check for the Wifi connection
