@@ -2,10 +2,6 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 #define COUNT(a) (sizeof(a) / sizeof(a[0]))
-// Wifi HotSpot
-const char* ssid = "TTRI-Guest";
-const char* password = "";
-const char* serverHost = "https://click-server-on-heroku.herokuapp.com/esp";
 
 // DFPlayer_Mini Control
 #include "DFRobotDFPlayerMini.h"
@@ -40,32 +36,29 @@ BMx280I2C CPN_BME280(BME280_Settings);
 #endif
 #define SMDLED_CONFIG_DURATION 4000
 #define SMDLED_CONFIG_FULL_BRIGHTNESS 255
-#define SMDLED_CONFIG_NUMPIXELS 7
+#define SMDLED_CONFIG_NUMPIXELS 5
 #define SMDLED_PIN 18
 Adafruit_NeoPixel CPN_SMDLED(SMDLED_CONFIG_NUMPIXELS, SMDLED_PIN, NEO_GRB + NEO_KHZ800);
-uint16_t CPN_Depth_r = 0, CPN_Depth_g = 255, CPN_Depth_b = 0;      // 按壓深度表顏色
-uint16_t CPN_Signal_r = 0, CPN_Signal_g = 255, CPN_Signal_b = 0;   // 指示燈顏色
 
 // AD8232
-#define AD8232_PIN_LOPLUS 34
-#define AD8232_PIN_LOMINUS 36
-#define AD8232_PIN_OUTPUT 39
+#define AD8232_PIN_LOPLUS 36
+#define AD8232_PIN_LOMINUS 39
+#define AD8232_PIN_OUTPUT 34
 int AD8232_OutputValue;
 
 // FSR 404
-#define FSR404_PIN 35
+#define FSR404_PIN 33
 #define FSR404_VALUE_THRESHOLD 3600
 int FSR404_Value_PreviousPressTime = 0;
 int FSR404_Freq = 0;
-int FSR404_Pressure = 0;
 
 // Flex Resistance
 #define FLEX_PIN 32
 #define FLEX_VCC 3.3
-#define FLEX_FLAT_RESISTANCE 0
-#define FLEX_BEND_RESISTANCE 3400
+#define FLEX_FLAT_RESISTANCE 15400
+#define FLEX_BEND_RESISTANCE 31000
 #define FLEX_DOWNPULL_RESISTANCE 10000
-#define FLEX_LENGTH 5
+#define FLEX_LENGTH 10.5
 int Flex_Value = 0;
 float Flex_Depth = 0.0;
 
@@ -109,6 +102,10 @@ bool isNewDataComing = false;   // a flag to check whether there's a new data co
 
 /*******************************************************************************/
 
+// Wifi HotSpot
+const char* ssid = "realme X3";
+const char* password = "0979268400";
+
 void setup() {
     // GLOBAL SETUP
 
@@ -124,9 +121,8 @@ void setup() {
             ;
     }
     CPN_DFPlayer.setTimeOut(500);                    // 1-3 : Set Serial Communication TimeOut 500ms
-    CPN_DFPlayer.volume(20);                         // 1-3 : Set Volume, range from 0~30
+    CPN_DFPlayer.volume(10);                         // 1-3 : Set Volume, range from 0~30
     CPN_DFPlayer.EQ(DFPLAYER_EQ_NORMAL);             // 1-3 : Set Different EQ
-    CPN_DFPlayer.enableLoopAll();                    // 1-3 : Enable one song to loop all
     CPN_DFPlayer.outputDevice(DFPLAYER_DEVICE_SD);   // 1-3 : Set Device output, Use SD Card as Default
     CPN_DFPlayer.play(1);                            // 1-4 : Start Playing 0001.mp3
     Serial.println("[STATE] 1. DFPlayer_Mini : OK");
@@ -140,13 +136,9 @@ void setup() {
     // Serial.println(CPN_DFPlayer.readCurrentFileNumber());
 
     // 2. AD8232
-    pinMode(AD8232_PIN_LOMINUS, INPUT);
-    pinMode(AD8232_PIN_LOPLUS, INPUT);
-
     // 3. BME280
     Wire.begin();
     while (!CPN_BME280.begin()) {
-        Serial.println("[STATE] 3. BME280 : FAILED");
         delay(100);
     }
     BME280_Settings.tempOSR = BME280::OSR_X4;
@@ -200,7 +192,6 @@ void loop() {
 
     CPN_BME280.read(pres, temp, hum, tempUnit, presUnit);
     BME280_Times++;
-    DEBUG(pres);
     BME280_Interval_Value += pres;
     if (BME280_Times == BME280_SAMPLE_INTERVAL) {
         BME280_AvgPres = BME280_Interval_Value / BME280_SAMPLE_INTERVAL;
@@ -211,19 +202,18 @@ void loop() {
 
     // TODO : 將 FSR 與 彎曲電阻 交叉比較
     // * 4: FSR404
-    FSR404_Pressure = analogRead(FSR404_PIN);
-    DEBUG(FSR404_Pressure);
+    int FSR404_Pressure = analogRead(FSR404_PIN);
     if (FSR404_Pressure >= FSR404_VALUE_THRESHOLD) {
         // 藉由 FSR404 兩次按壓的間隔毫秒數，計算每分鐘按壓頻率
         // 60000 = 60 (1min = 60s) * 1000 (1s = 1000ms)
         FSR404_Freq = 60000 / (millis() - FSR404_Value_PreviousPressTime);
-        DEBUG(FSR404_Freq);
         FSR404_Value_PreviousPressTime = millis();
     }
+    // DEBUG(FSR404_Pressure);
 
     // * 5: Flex Resistance
     Flex_Value = analogRead(FLEX_PIN);
-    DEBUG(Flex_Value);
+    // DEBUG(Flex_Value);
 
     // After all, set the new data coming Flag to true
     isNewDataComing = true;
@@ -243,24 +233,23 @@ void DataUpload() {
     // 2. Check WiFi connection status
     if (WiFi.status() == WL_CONNECTED) {
         HTTPClient http;
-        WiFiClient client;
 
         // 3. HTTP Request Configuration
-        http.begin(client, serverHost);                       //Specify destination for HTTP request
-        http.addHeader("Content-Type", "application/json");   //Specify content-type header
+        http.begin("http://click-server-on-heroku.herokuapp.com/esp");   //Specify destination for HTTP request
+        http.addHeader("Content-Type", "application/json");              //Specify content-type header
 
         // TODO : POST CONTENT
         char content[100];
         snprintf_P(
             content,
             COUNT(content),
-            PSTR("{\"CPR_Depth\":\"%02u\", \"CPR_Freq\":\"%02u\", \"Breath_Freq\":\"%02u\", \"HeartRate\":\"%02u\"}"),
+            PSTR("{\"CPR_Depth\":%02u, \"CPR_Freq\":%02u, \"Breath_Freq\":%02u, \"HeartRate\":%02u}"),
             Flex_Depth,
             FSR404_Freq,
             BME280_AvgPres,
             AD8232_OutputValue);
-        // Serial.print("[INFO] ");
-        // Serial.println(content);
+        Serial.print("[INFO] ");
+        Serial.println(content);
 
         int httpResponseCode = http.POST(content);   //Send the actual POST request
         // int httpResponseCode = http.GET();
@@ -290,16 +279,16 @@ void DataUpload() {
 void SMDLEDControl() {
     // 提供 按壓是否太快或太慢的資訊給使用者
 
-    // // 1. 由 Flex Sensor 電阻值 估算 按壓深度
-    // // Read the ADC, and calculate voltage and resistance from it
-    // float Flex_Voltage = Flex_Value * FLEX_VCC / 4096.0;
-    // float Flex_Resistance = FLEX_DOWNPULL_RESISTANCE * (FLEX_VCC / Flex_Voltage - 1.0);
+    // 1. 由 Flex Sensor 電阻值 估算 按壓深度
+    // Read the ADC, and calculate voltage and resistance from it
+    float Flex_Voltage = Flex_Value * FLEX_VCC / 4096.0;
+    float Flex_Resistance = FLEX_DOWNPULL_RESISTANCE * (FLEX_VCC / Flex_Voltage - 1.0);
 
     // Use the calculated resistance to estimate the sensor's bend angle:
-    int Flex_Angle = map(Flex_Value, FLEX_FLAT_RESISTANCE, FLEX_BEND_RESISTANCE, 0, 90.0);
+    int Flex_Angle = map(Flex_Resistance, FLEX_FLAT_RESISTANCE, FLEX_BEND_RESISTANCE, 0, 90.0);
     Flex_Depth = FLEX_LENGTH * sin(Flex_Angle * PI / 180);
 
-    Serial.print("[INFO] Resistance: " + String(Flex_Value) + " mVs");
+    Serial.print("[INFO] Resistance: " + String(Flex_Resistance) + " ohms");
     Serial.print("\tBend: " + String(Flex_Angle) + " degrees");
     Serial.println("\tDepth: " + String(Flex_Depth) + " cm");
 
@@ -307,22 +296,22 @@ void SMDLEDControl() {
     // 依照角度區間 來給予 深度等級
     switch (Flex_Angle / 10) {
         case 0:
+            Flex_Depth = 0;
+            break;
         case 1:
         case 2:
-            Flex_Depth = 0;
+            Flex_Depth = 1;
             break;
         case 3:
         case 4:
-            Flex_Depth = 1;
+            Flex_Depth = 2;
             break;
         case 5:
         case 6:
-            Flex_Depth = 2;
+            Flex_Depth = 3;
             break;
         case 7:
         case 8:
-            Flex_Depth = 3;
-            break;
         case 9:
             Flex_Depth = 4;
             break;
@@ -332,41 +321,12 @@ void SMDLEDControl() {
     }
 
     // 2. SMD LED 亮度提示
-    // CPN_SMDLED.clear();   // Set all pixel colors to 'off'
-
-    // 6th LED
-    // TODO : 指示燈 暫時 常綠，尚未有停止按壓的條件出現
-    CPN_SMDLED.setPixelColor(6, CPN_SMDLED.Color(CPN_Signal_r, CPN_Signal_g, CPN_Signal_b));
-
-    // 如果 FSR 沒有收到按壓，就不更新 LED 資訊
-    if (FSR404_Pressure <= 2048) {
-        CPN_SMDLED.show();   // Send the updated pixel colors to the hardware.
-        return;
-    }
-
-    // 0 ~ 4th LEDs
-    // 當深度 <= 2級距時，將顏色轉為紅色警告使用者；反之轉為綠色
-    if (Flex_Depth < 2) {
-        CPN_Depth_r = 255;
-        CPN_Depth_g = 0;
-        CPN_Depth_b = 0;
-    } else {
-        CPN_Depth_r = 0;
-        CPN_Depth_g = 255;
-        CPN_Depth_b = 0;
-    }
-
+    CPN_SMDLED.clear();                                    // Set all pixel colors to 'off'
     for (int i = 0; i <= SMDLED_CONFIG_NUMPIXELS; i++) {   // For each pixel...
         // SMD LED 會隨著深度 改變 亮著的 LED 燈顆數
-        if (i <= Flex_Depth)
-            CPN_SMDLED.setPixelColor(i, CPN_SMDLED.Color(CPN_Depth_r, CPN_Depth_g, CPN_Depth_b));
-        else {
-            CPN_SMDLED.setPixelColor(i, CPN_SMDLED.Color(0, 0, 0));
-        }
+        if (i > Flex_Depth) break;
+        CPN_SMDLED.setPixelColor(i, CPN_SMDLED.Color(255, 0, 0));
     }
-    // 6th LED
-    // TODO : 指示燈 暫時 常綠，尚未有停止按壓的條件出現
-    CPN_SMDLED.setPixelColor(6, CPN_SMDLED.Color(CPN_Signal_r, CPN_Signal_g, CPN_Signal_b));
     CPN_SMDLED.show();   // Send the updated pixel colors to the hardware.
     // delay(SMDLED_CONFIG_DURATION / SMDLED_CONFIG_FULL_BRIGHTNESS);   // Pause before next pass through loop
 }
@@ -384,12 +344,11 @@ void TaskonCore0(void* pvParameters) {
 #endif
     // END of Trinket-specific code.
     CPN_SMDLED.begin();   // INITIALIZE NeoPixel strip object (REQUIRED)
-    CPN_SMDLED.clear();   // Set all pixel colors to 'off'
     Serial.println("[STATE] 1. SMD LED: OK");
 
     // * 2. Wifi Connection
     delay(4000);                              // 2-1 : Delay needed before calling the WiFi.begin
-    WiFi.begin(ssid);                         // 2-2 : Connect to Wifi via ssid & password
+    WiFi.begin(ssid, password);               // 2-2 : Connect to Wifi via ssid & password
     while (WiFi.status() != WL_CONNECTED) {   // 2-3 : Check for the Wifi connection
         delay(1000);
         Serial.println("[SETUP] Connecting to WiFi ...");
@@ -401,8 +360,7 @@ void TaskonCore0(void* pvParameters) {
         // busy-looSMDLED_PINg until NFC Flag being triggered
         if (isNewDataComing) {
             // do work
-            // TODO : Unlock
-            DataUpload();
+            // DataUpload();
             SMDLEDControl();
 
             // set the NDC Flag to false

@@ -9,8 +9,8 @@
 
 #define duration 4000
 #define full_brightness 255
-#define NUMPIXELS 17
-#define PIN 27
+#define NUMPIXELS 7
+#define PIN 18
 Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 void setup() {
