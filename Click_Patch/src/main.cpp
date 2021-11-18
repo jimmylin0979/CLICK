@@ -5,7 +5,7 @@
 // Wifi HotSpot
 const char* ssid = "TTRI-Guest";
 const char* password = "";
-const char* serverHost = "https://click-server-on-heroku.herokuapp.com/esp";
+const char* serverHost = "https://d627-210-61-66-82.ngrok.io/esp";
 
 // DFPlayer_Mini Control
 #include "DFRobotDFPlayerMini.h"
@@ -124,7 +124,7 @@ void setup() {
             ;
     }
     CPN_DFPlayer.setTimeOut(500);                    // 1-3 : Set Serial Communication TimeOut 500ms
-    CPN_DFPlayer.volume(20);                         // 1-3 : Set Volume, range from 0~30
+    CPN_DFPlayer.volume(25);                         // 1-3 : Set Volume, range from 0~30
     CPN_DFPlayer.EQ(DFPLAYER_EQ_NORMAL);             // 1-3 : Set Different EQ
     CPN_DFPlayer.enableLoopAll();                    // 1-3 : Enable one song to loop all
     CPN_DFPlayer.outputDevice(DFPLAYER_DEVICE_SD);   // 1-3 : Set Device output, Use SD Card as Default
@@ -183,7 +183,8 @@ float preA = 0.0;
 void loop() {
     // // Loop for Core 1
     // // Tasks in Core 1
-    // // 1: DFPlayer_Mini
+    // 1: DFPlayer_Mini
+    CPN_DFPlayer.play(1);
 
     // * 2: AD8232
     if ((digitalRead(AD8232_PIN_LOPLUS) == 1) || (digitalRead(AD8232_PIN_LOMINUS) == 1)) {
@@ -259,8 +260,8 @@ void DataUpload() {
             FSR404_Freq,
             BME280_AvgPres,
             AD8232_OutputValue);
-        // Serial.print("[INFO] ");
-        // Serial.println(content);
+        Serial.print("[INFO] ");
+        Serial.println(content);
 
         int httpResponseCode = http.POST(content);   //Send the actual POST request
         // int httpResponseCode = http.GET();
@@ -309,13 +310,13 @@ void SMDLEDControl() {
         case 0:
         case 1:
         case 2:
-            Flex_Depth = 0;
-            break;
         case 3:
         case 4:
-            Flex_Depth = 1;
+            Flex_Depth = 0;
             break;
         case 5:
+            Flex_Depth = 1;
+            break;
         case 6:
             Flex_Depth = 2;
             break;
@@ -338,11 +339,11 @@ void SMDLEDControl() {
     // TODO : 指示燈 暫時 常綠，尚未有停止按壓的條件出現
     CPN_SMDLED.setPixelColor(6, CPN_SMDLED.Color(CPN_Signal_r, CPN_Signal_g, CPN_Signal_b));
 
-    // 如果 FSR 沒有收到按壓，就不更新 LED 資訊
-    if (FSR404_Pressure <= 2048) {
-        CPN_SMDLED.show();   // Send the updated pixel colors to the hardware.
-        return;
-    }
+    // // 如果 FSR 沒有收到按壓，就不更新 LED 資訊
+    // if (FSR404_Pressure <= 2048) {
+    //     CPN_SMDLED.show();   // Send the updated pixel colors to the hardware.
+    //     return;
+    // }
 
     // 0 ~ 4th LEDs
     // 當深度 <= 2級距時，將顏色轉為紅色警告使用者；反之轉為綠色
